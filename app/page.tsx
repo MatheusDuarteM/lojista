@@ -1,131 +1,146 @@
-import { PlusCircle, Search, Filter, Image as ImageIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+"use client";
 
-export default function ProdutosPage() {
+import { useState, useEffect, useMemo } from "react";
+import { supabase } from "@/lib/supabase";
+
+// Importando os componentes refatorados
+import { SectionHeader } from "@/components/components-header/section-header";
+import { SectionHero } from "@/components/components-hero/section-hero";
+import { SectionProdutos } from "@/components/components-produtos/section-produtos";
+import { SectionAbordagem } from "@/components/components-abordagem/section-abordagem";
+import { SectionFooter } from "@/components/components-footer/section-footer";
+import { abordagem, footer } from "@/lib/valuePage";
+
+export default function StorefrontPage() {
+  const [produtos, setProdutos] = useState<any[]>([]);
+  const [categoriaAtiva, setCategoriaAtiva] = useState("Todos");
+  const [ideiaPersonalizada, setIdeiaPersonalizada] = useState("");
+  const [carrinho, setCarrinho] = useState<any[]>([]);
+  const [isSacolaAberta, setIsSacolaAberta] = useState(false);
+
+  const NUMERO_WHATSAPP = "5527999999999";
+
+  async function carregarProdutos() {
+    const { data } = await supabase
+      .from("produtos")
+      .select("*")
+      .eq("ativado", true)
+      .order("criado_em", { ascending: false });
+    if (data) setProdutos(data);
+  }
+
+  useEffect(() => {
+    carregarProdutos();
+    const salvo = localStorage.getItem("naga-cart");
+    if (salvo) setCarrinho(JSON.parse(salvo));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("naga-cart", JSON.stringify(carrinho));
+  }, [carrinho]);
+
+  const adicionarAoCarrinho = (produto: any) => {
+    setCarrinho((prev) => {
+      const itemExiste = prev.find((item) => item.id === produto.id);
+      if (itemExiste) {
+        return prev.map((item) =>
+          item.id === produto.id
+            ? { ...item, quantidade: item.quantidade + 1 }
+            : item,
+        );
+      }
+      return [...prev, { ...produto, quantidade: 1 }];
+    });
+    setIsSacolaAberta(true);
+  };
+
+  const removerOuDiminuir = (id: string) => {
+    setCarrinho((prev) =>
+      prev
+        .map((item) =>
+          item.id === id ? { ...item, quantidade: item.quantidade - 1 } : item,
+        )
+        .filter((item) => item.quantidade > 0),
+    );
+  };
+
+  const excluirDoCarrinho = (id: string) => {
+    setCarrinho((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const valorTotal = carrinho.reduce(
+    (acc, item) => acc + item.preco * item.quantidade,
+    0,
+  );
+
+  const confirmarCompraWhatsApp = () => {
+    const mensagemBase =
+      "Olá! Gostaria de encomendar os seguintes itens da NAGA:\n\n";
+    const itensTexto = carrinho
+      .map(
+        (item) =>
+          `• ${item.quantidade}x ${item.nome} - R$ ${(item.preco * item.quantidade).toFixed(2)}`,
+      )
+      .join("\n");
+    const textoFinal = `${mensagemBase}${itensTexto}\n\n*Total: R$ ${valorTotal.toFixed(2)}*`;
+    window.open(
+      `https://wa.me/${NUMERO_WHATSAPP}?text=${encodeURIComponent(textoFinal)}`,
+      "_blank",
+    );
+  };
+
+  const solicitarJoiaPersonalizada = () => {
+    if (!ideiaPersonalizada.trim())
+      return alert("Por favor, descreva sua ideia primeiro.");
+    const mensagem = `Olá! Tenho uma ideia para uma joia personalizada que não vi no catálogo:\n\n"${ideiaPersonalizada}"`;
+    window.open(
+      `https://wa.me/${NUMERO_WHATSAPP}?text=${encodeURIComponent(mensagem)}`,
+      "_blank",
+    );
+  };
+
+  const categorias = useMemo(
+    () => ["Todos", ...Array.from(new Set(produtos.map((p) => p.categoria)))],
+    [produtos],
+  );
+  const produtosFiltrados = produtos.filter(
+    (p) => categoriaAtiva === "Todos" || p.categoria === categoriaAtiva,
+  );
+
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-bold">Inventory Management</h1>
+    <div className="min-h-screen bg-white text-slate-900 font-sans">
+      <SectionHeader
+        carrinho={carrinho}
+        isSacolaAberta={isSacolaAberta}
+        setIsSacolaAberta={setIsSacolaAberta}
+        adicionarAoCarrinho={adicionarAoCarrinho}
+        removerOuDiminuir={removerOuDiminuir}
+        excluirDoCarrinho={excluirDoCarrinho}
+        valorTotal={valorTotal}
+        confirmarCompraWhatsApp={confirmarCompraWhatsApp}
+      />
 
-      {/* BLOCO 1: FORMULÁRIO DE CADASTRO */}
-      <Card>
-        <CardHeader className="flex flex-row items-center gap-2">
-          <PlusCircle className="text-blue-600" size={20} />
-          <CardTitle className="text-lg">Cadastrar Novo Produto</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Área de Upload (Placeholder) */}
-            <div className="md:col-span-1 space-y-4">
-              <Label>Product Images</Label>
-              <div className="border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-slate-400 bg-slate-50 border-blue-200">
-                <ImageIcon size={40} className="mb-2 text-blue-400" />
-                <p className="text-sm font-medium text-blue-600">
-                  Click to upload
-                </p>
-                <p className="text-xs">SVG, PNG, JPG (max. 5MB)</p>
-              </div>
-            </div>
+      <main className="max-w-7xl mx-auto px-6 py-12">
+        <SectionHero
+          categorias={categorias}
+          categoriaAtiva={categoriaAtiva}
+          setCategoriaAtiva={setCategoriaAtiva}
+        />
 
-            {/* Campos de Texto */}
-            <div className="md:col-span-2 grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nome">Product Name</Label>
-                <Input id="nome" placeholder="e.g. Sapphire Gold Ring" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="categoria">Category</Label>
-                <Input id="categoria" placeholder="Select category" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="preco">Price (R$)</Label>
-                <Input id="preco" type="number" placeholder="R$ 0.00" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="estoque">Initial Stock</Label>
-                <Input id="estoque" type="number" placeholder="10" />
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="descricao">Description</Label>
-                <textarea
-                  id="descricao"
-                  className="w-full min-h-25 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="Enter product description..."
-                />
-              </div>
-            </div>
+        <SectionProdutos
+          produtos={produtosFiltrados}
+          adicionarAoCarrinho={adicionarAoCarrinho}
+        />
 
-            <div className="md:col-span-3 flex justify-end gap-3 border-t pt-4">
-              <Button variant="ghost">Cancel</Button>
-              <Button className="bg-blue-600 hover:bg-blue-700">
-                Salvar Produto
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+        <SectionAbordagem
+          ideiaPersonalizada={ideiaPersonalizada}
+          setIdeiaPersonalizada={setIdeiaPersonalizada}
+          solicitarJoiaPersonalizada={solicitarJoiaPersonalizada}
+          {...abordagem}
+        />
+      </main>
 
-      {/* BLOCO 2: LISTA DE PRODUTOS (TABELA) */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CardTitle className="text-lg">Lista de Produtos</CardTitle>
-          </div>
-          <div className="flex gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
-              <Input className="pl-8 w-62.5" placeholder="Search products..." />
-            </div>
-            <Button variant="outline" size="icon">
-              <Filter size={18} />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Price</TableHead>
-                <TableHead>Stock</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {/* Exemplo Estático (Mock) */}
-              <TableRow>
-                <TableCell className="font-medium">
-                  Gold Serpent Necklace
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary">Necklaces</Badge>
-                </TableCell>
-                <TableCell>R$ 1.250,00</TableCell>
-                <TableCell>12</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Switch checked />
-                    <span className="text-sm">Active</span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <SectionFooter p={footer.p} span={footer.span} span2={footer.span2} />
     </div>
   );
 }

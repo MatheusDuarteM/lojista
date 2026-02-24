@@ -1,7 +1,6 @@
 // app/produtos/actions.ts
 "use server";
 
-// Apenas use em ambiente de desenvolvimento se houver erro de SSL local
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 import { supabase } from "@/lib/supabase";
@@ -15,17 +14,13 @@ export async function cadastrarProduto(formData: FormData) {
   const descricao = formData.get("descricao") as string;
   const ativado = formData.get("ativado") === "on";
 
-  // Pega o arquivo do formulário
   const fotoFile = formData.get("foto") as File;
   let fotoUrl = "";
 
   if (fotoFile && fotoFile.size > 0) {
-    // AJUSTE 1: Limpar o nome do arquivo (remove espaços e caracteres especiais)
-    // Isso evita erros de URL quebrada no navegador
     const fileExt = fotoFile.name.split(".").pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
 
-    // 1. Faz o upload para o Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from("fotos-produtos")
       .upload(fileName, fotoFile, {
@@ -34,11 +29,9 @@ export async function cadastrarProduto(formData: FormData) {
       });
 
     if (uploadError) {
-      // AJUSTE 2: Lançar erro para que o usuário saiba que a foto falhou
       console.error("Erro no Upload:", uploadError.message);
       throw new Error(`Erro no upload da imagem: ${uploadError.message}`);
     } else {
-      // 2. Pega a URL pública da imagem
       const { data: publicUrlData } = supabase.storage
         .from("fotos-produtos")
         .getPublicUrl(fileName);
@@ -47,7 +40,6 @@ export async function cadastrarProduto(formData: FormData) {
     }
   }
 
-  // 3. Salva no banco de dados
   const { error } = await supabase.from("produtos").insert([
     {
       nome,
@@ -56,8 +48,7 @@ export async function cadastrarProduto(formData: FormData) {
       estoque,
       descricao,
       ativado,
-      // Salva no formato array de texto compatível com o banco
-      imagem: fotoUrl ? [fotoUrl] : [],
+      imagem: fotoUrl ? [fotoUrl] : [], //
     },
   ]);
 
@@ -65,20 +56,58 @@ export async function cadastrarProduto(formData: FormData) {
     console.error("Erro ao salvar no banco:", error.message);
     throw new Error(`Falha ao cadastrar produto: ${error.message}`);
   }
+
+  // ADICIONADO: Atualiza a lista após cadastrar
+  revalidatePath("/produtos");
 }
+
 export async function excluirProduto(id: string, imagemUrl?: string) {
-  // 1. Se existir uma imagem, removemos do Storage para não ocupar espaço à toa
   if (imagemUrl) {
-    const fileName = imagemUrl.split("/").pop(); // Pega o nome do arquivo da URL
+    const fileName = imagemUrl.split("/").pop();
     if (fileName) {
       await supabase.storage.from("fotos-produtos").remove([fileName]);
     }
   }
 
-  // 2. Remove o registro do banco de dados
   const { error } = await supabase.from("produtos").delete().eq("id", id);
 
   if (error) throw new Error(`Erro ao excluir: ${error.message}`);
 
+  // Atualiza a lista após excluir
   revalidatePath("/produtos");
+}
+
+export async function atualizarProduto(id: string, formData: FormData) {
+  const nome = formData.get("nome") as string;
+  const categoria = formData.get("categoria") as string;
+  const preco = parseFloat(formData.get("preco") as string) || 0;
+  const estoque = parseInt(formData.get("estoque") as string) || 0;
+  const descricao = formData.get("descricao") as string;
+  const ativado = formData.get("ativado") === "on";
+
+  const { error } = await supabase
+    .from("produtos")
+    .update({ nome, categoria, preco, estoque, descricao, ativado })
+    .eq("id", id);
+
+  if (error) throw new Error(`Erro ao atualizar: ${error.message}`);
+
+  // Atualiza a lista após atualizar
+  revalidatePath("/produtos");
+}
+
+// app/produtos/actions.ts
+
+export async function alternarStatusProduto(id: string, statusAtual: boolean) {
+  const { error } = await supabase
+    .from("produtos")
+    .update({ ativado: !statusAtual }) // Inverte o status (se é false vira true)
+    .eq("id", id);
+
+  if (error) {
+    console.error("Erro ao alternar status:", error);
+    return { success: false };
+  }
+
+  return { success: true };
 }
