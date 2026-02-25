@@ -111,3 +111,30 @@ export async function alternarStatusProduto(id: string, statusAtual: boolean) {
 
   return { success: true };
 }
+
+export async function baixarEstoque(id: string, quantidade: number) {
+  const { data: produto, error: fetchError } = await supabase
+    .from("produtos")
+    .select("estoque")
+    .eq("id", id)
+    .single();
+
+  if (fetchError) {
+    console.error("Erro ao buscar produto:", fetchError);
+    return { success: false };
+  }
+
+  const novoEstoque = Math.max((produto?.estoque || 0) - quantidade, 0);
+
+  const { error: updateError } = await supabase
+    .from("produtos")
+    .update({ estoque: novoEstoque })
+    .eq("id", id);
+
+  if (updateError) {
+    console.error("Erro ao atualizar estoque:", updateError);
+    return { success: false };
+  }
+
+  return { success: true };
+}

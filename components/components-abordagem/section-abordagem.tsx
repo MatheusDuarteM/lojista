@@ -1,4 +1,5 @@
 "use client";
+import { useRef } from "react"; // 1. Importar o useRef
 import { UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -16,6 +17,24 @@ interface AbordagemProps {
 }
 
 export function SectionAbordagem(props: AbordagemProps) {
+  // 2. Criar a referência para o input escondido
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAreaClick = () => {
+    // 3. Simular o clique no input real quando clicar na div
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      console.log("Arquivo selecionado:", file.name);
+      // Aqui você pode adicionar lógica para salvar o arquivo no estado
+      // ou enviar para o Supabase Storage futuramente.
+      alert(`Arquivo "${file.name}" selecionado com sucesso!`);
+    }
+  };
+
   return (
     <section className="bg-blue-50/30 rounded-3xl p-12 text-center mb-24">
       <span className="text-[10px] uppercase tracking-[4px] text-blue-400 font-bold">
@@ -41,15 +60,7 @@ export function SectionAbordagem(props: AbordagemProps) {
               className="w-full min-h-30 bg-slate-50 border-none rounded-xl p-4 text-sm focus:ring-1 focus:ring-blue-100 outline-none"
             />
           </div>
-          <div className="border-2 border-dashed border-slate-100 rounded-xl p-8 text-center hover:border-blue-200 transition-colors cursor-pointer group">
-            <UploadCloud
-              className="mx-auto text-slate-300 group-hover:text-blue-300 mb-2"
-              size={32}
-            />
-            <p className="text-[10px] uppercase tracking-wider text-slate-400">
-              {props.p2}
-            </p>
-          </div>
+
           <Button
             onClick={props.solicitarJoiaPersonalizada}
             className="w-full bg-[#A8DADC] hover:bg-[#96cacc] text-slate-800 h-14 rounded-xl font-bold tracking-wider"

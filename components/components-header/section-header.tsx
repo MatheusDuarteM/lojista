@@ -70,6 +70,7 @@ export function SectionHeader({
                     </p>
                   </div>
                 ) : (
+                  /*carrinho de compra*/
                   carrinho.map((item) => (
                     <div key={item.id} className="flex gap-3 pl-2 pr-4">
                       <div className="w-20 h-20 bg-slate-50 rounded-sm overflow-hidden shrink-0">
@@ -113,6 +114,7 @@ export function SectionHeader({
                       </p>
                     </div>
                   ))
+                  /*fim carrinho de compra*/
                 )}
               </div>
               {carrinho.length > 0 && (

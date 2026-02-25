@@ -18,7 +18,7 @@ export default function StorefrontPage() {
   const [carrinho, setCarrinho] = useState<any[]>([]);
   const [isSacolaAberta, setIsSacolaAberta] = useState(false);
 
-  const NUMERO_WHATSAPP = "5527999999999";
+  const NUMERO_WHATSAPP = "5527992812662";
 
   async function carregarProdutos() {
     const { data } = await supabase
@@ -73,20 +73,65 @@ export default function StorefrontPage() {
     0,
   );
 
-  const confirmarCompraWhatsApp = () => {
-    const mensagemBase =
-      "Olá! Gostaria de encomendar os seguintes itens da NAGA:\n\n";
-    const itensTexto = carrinho
-      .map(
-        (item) =>
-          `• ${item.quantidade}x ${item.nome} - R$ ${(item.preco * item.quantidade).toFixed(2)}`,
-      )
-      .join("\n");
-    const textoFinal = `${mensagemBase}${itensTexto}\n\n*Total: R$ ${valorTotal.toFixed(2)}*`;
-    window.open(
-      `https://wa.me/${NUMERO_WHATSAPP}?text=${encodeURIComponent(textoFinal)}`,
-      "_blank",
-    );
+  // --- NOVA FUNÇÃO PARA ATUALIZAR O ESTOQUE NO BANCO ---
+  const atualizarEstoqueNoBanco = async () => {
+    try {
+      // Criamos uma lista de promessas para atualizar todos os itens do carrinho simultaneamente
+      const promises = carrinho.map(async (item) => {
+        const novoEstoque = item.estoque - item.quantidade;
+
+        const { error } = await supabase
+          .from("produtos")
+          .update({ estoque: novoEstoque })
+          .eq("id", item.id);
+
+        if (error) throw error;
+      });
+
+      await Promise.all(promises);
+
+      // Após atualizar o banco, recarregamos os produtos para refletir na vitrine
+      await carregarProdutos();
+      return true;
+    } catch (error) {
+      console.error("Erro ao atualizar estoque:", error);
+      alert(
+        "Houve um erro ao processar o estoque. Algum item pode ter esgotado.",
+      );
+      return false;
+    }
+  };
+
+  // --- ATUALIZANDO A FUNÇÃO DE CONFIRMAR COMPRA ---
+  const confirmarCompraWhatsApp = async () => {
+    if (carrinho.length === 0) return;
+
+    // 1. Primeiro tentamos dar baixa no estoque
+    const sucesso = await atualizarEstoqueNoBanco();
+
+    // 2. Se deu certo, prosseguimos para o WhatsApp
+    if (sucesso) {
+      const mensagemBase =
+        "Olá! Gostaria de encomendar os seguintes itens da NAGA:\n\n";
+      const itensTexto = carrinho
+        .map(
+          (item) =>
+            `• ${item.quantidade}x ${item.nome} - R$ ${(item.preco * item.quantidade).toFixed(2)}`,
+        )
+        .join("\n");
+
+      const textoFinal = `${mensagemBase}${itensTexto}\n\n*Total: R$ ${valorTotal.toFixed(2)}*`;
+
+      // Limpa o carrinho após a compra com sucesso
+      setCarrinho([]);
+      localStorage.removeItem("naga-cart");
+      setIsSacolaAberta(false);
+
+      window.open(
+        `https://wa.me/${NUMERO_WHATSAPP}?text=${encodeURIComponent(textoFinal)}`,
+        "_blank",
+      );
+    }
   };
 
   const solicitarJoiaPersonalizada = () => {
