@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
+import { Toaster, toast } from "sonner"; // 1. Importar a Sonner
 
 // Importando os componentes refatorados
 import { SectionHeader } from "@/components/components-header/section-header";
@@ -42,13 +43,31 @@ export default function StorefrontPage() {
   const adicionarAoCarrinho = (produto: any) => {
     setCarrinho((prev) => {
       const itemExiste = prev.find((item) => item.id === produto.id);
+      const quantidadeNoCarrinho = itemExiste ? itemExiste.quantidade : 0;
+
+      // --- SINALIZAÇÃO SUAVE DE ESTOQUE ---
+      if (quantidadeNoCarrinho >= produto.estoque) {
+        toast.error("Limite de estoque atingido", {
+          description: `Temos apenas ${produto.estoque} unidades de "${produto.nome}" disponíveis.`,
+          style: {
+            background: "#f8fafc",
+            color: "#1e293b",
+            border: "1px solid #e2e8f0",
+          },
+        });
+        return prev;
+      }
+
       if (itemExiste) {
+        toast.success(`Mais um "${produto.nome}" adicionado!`);
         return prev.map((item) =>
           item.id === produto.id
             ? { ...item, quantidade: item.quantidade + 1 }
             : item,
         );
       }
+
+      toast.success("Adicionado à sacola!");
       return [...prev, { ...produto, quantidade: 1 }];
     });
     setIsSacolaAberta(true);
@@ -66,6 +85,7 @@ export default function StorefrontPage() {
 
   const excluirDoCarrinho = (id: string) => {
     setCarrinho((prev) => prev.filter((item) => item.id !== id));
+    toast.info("Item removido da sacola");
   };
 
   const valorTotal = carrinho.reduce(
@@ -73,44 +93,41 @@ export default function StorefrontPage() {
     0,
   );
 
-  // --- NOVA FUNÇÃO PARA ATUALIZAR O ESTOQUE NO BANCO ---
   const atualizarEstoqueNoBanco = async () => {
     try {
-      // Criamos uma lista de promessas para atualizar todos os itens do carrinho simultaneamente
       const promises = carrinho.map(async (item) => {
         const novoEstoque = item.estoque - item.quantidade;
-
         const { error } = await supabase
           .from("produtos")
           .update({ estoque: novoEstoque })
           .eq("id", item.id);
-
         if (error) throw error;
       });
 
       await Promise.all(promises);
-
-      // Após atualizar o banco, recarregamos os produtos para refletir na vitrine
       await carregarProdutos();
       return true;
     } catch (error) {
       console.error("Erro ao atualizar estoque:", error);
-      alert(
-        "Houve um erro ao processar o estoque. Algum item pode ter esgotado.",
-      );
+      toast.error("Erro no processamento", {
+        description: "Não conseguimos atualizar o estoque. Tente novamente.",
+      });
       return false;
     }
   };
 
-  // --- ATUALIZANDO A FUNÇÃO DE CONFIRMAR COMPRA ---
   const confirmarCompraWhatsApp = async () => {
     if (carrinho.length === 0) return;
 
-    // 1. Primeiro tentamos dar baixa no estoque
+    // Feedback visual de carregamento
+    const idAviso = toast.loading("Processando seu pedido...");
+
     const sucesso = await atualizarEstoqueNoBanco();
 
-    // 2. Se deu certo, prosseguimos para o WhatsApp
     if (sucesso) {
+      toast.dismiss(idAviso);
+      toast.success("Pedido pronto! Redirecionando...");
+
       const mensagemBase =
         "Olá! Gostaria de encomendar os seguintes itens da NAGA:\n\n";
       const itensTexto = carrinho
@@ -122,7 +139,6 @@ export default function StorefrontPage() {
 
       const textoFinal = `${mensagemBase}${itensTexto}\n\n*Total: R$ ${valorTotal.toFixed(2)}*`;
 
-      // Limpa o carrinho após a compra com sucesso
       setCarrinho([]);
       localStorage.removeItem("naga-cart");
       setIsSacolaAberta(false);
@@ -135,8 +151,11 @@ export default function StorefrontPage() {
   };
 
   const solicitarJoiaPersonalizada = () => {
-    if (!ideiaPersonalizada.trim())
-      return alert("Por favor, descreva sua ideia primeiro.");
+    if (!ideiaPersonalizada.trim()) {
+      return toast.warning("Campo vazio", {
+        description: "Por favor, descreva sua ideia antes de enviar.",
+      });
+    }
     const mensagem = `Olá! Tenho uma ideia para uma joia personalizada que não vi no catálogo:\n\n"${ideiaPersonalizada}"`;
     window.open(
       `https://wa.me/${NUMERO_WHATSAPP}?text=${encodeURIComponent(mensagem)}`,
@@ -148,12 +167,16 @@ export default function StorefrontPage() {
     () => ["Todos", ...Array.from(new Set(produtos.map((p) => p.categoria)))],
     [produtos],
   );
+
   const produtosFiltrados = produtos.filter(
     (p) => categoriaAtiva === "Todos" || p.categoria === categoriaAtiva,
   );
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans">
+      {/* 2. Adicionar o Toaster aqui para renderizar as mensagens */}
+      <Toaster position="bottom-right" richColors closeButton />
+
       <SectionHeader
         carrinho={carrinho}
         isSacolaAberta={isSacolaAberta}
